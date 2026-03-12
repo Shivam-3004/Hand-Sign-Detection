@@ -19,12 +19,7 @@ class BottomNavigationAI extends StatelessWidget {
       {'icon': Icons.settings_rounded, 'label': 'Settings'},
     ];
 
-    return Positioned(
-      // 🔥 Move navigation bar slightly upward
-      bottom: 40 + MediaQuery.of(context).padding.bottom,
-      left: 16,
-      right: 16,
-      child: ClipRRect(
+    return ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -105,7 +100,6 @@ class BottomNavigationAI extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 }

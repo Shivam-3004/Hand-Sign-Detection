@@ -34,10 +34,18 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           screens[_currentIndex],
 
-          BottomNavigationAI(
-            currentIndex: _currentIndex,
-            onTap: _onNavTap, currentScreen: '', onNavigate: (String p1) {  },
-          ),
+          if (_currentIndex != 1)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: BottomNavigationAI(
+                currentIndex: _currentIndex,
+                onTap: _onNavTap,
+                currentScreen: '',
+                onNavigate: (String p1) {},
+              ),
+            ),
         ],
       ),
     );
