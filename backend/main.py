@@ -1,87 +1,63 @@
-from collections import Counter
-import os
-import shutil
-import tempfile
-from pathlib import Path
-
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from PIL import Image
+from io import BytesIO
+from prediction import predict_gesture
 
-from prediction import (
-    extract_frames_from_video,
-    predict_frames,
-    predict_gesture,
-)
+# ---------------------------------------------------------------------------
+# FastAPI application
+# The backend exposes a single /upload endpoint that accepts an image, runs
+# Vision Transformer inference, and returns the predicted hand-sign label with
+# a confidence score.
+#
+# Expected flow:
+#   Flutter (camera frame every 300-500 ms)
+#     → POST /upload  (multipart/form-data, field "image")
+#     ← JSON  { "prediction": { "prediction": "A", "confidence": 0.97, ... } }
+# ---------------------------------------------------------------------------
 
-# Create a FastAPI application instance. This will be used to
-# register request handlers for the HTTP API.
-app = FastAPI()
+app = FastAPI(title="HandSign Recognition API")
+
+
+@app.get("/")
+def health_check():
+    """Simple liveness probe so the Flutter app can verify the server is up."""
+    return {"status": "ok"}
 
 
 @app.post("/upload")
 async def upload_image(image: UploadFile = File(...)):
-    """Endpoint for uploading an image file.
+    """Receive a single image frame and return the recognised hand-sign.
 
-    The client should POST an image file under the form field
-    named "image". The handler validates that the uploaded file
-    is an image, converts it to a PIL Image, and then calls
-    :func:`predict_gesture` to obtain predictions from the
-    trained model. The response includes the prediction results.
+    The client (Flutter) should POST the image under the form field named
+    **image**.  The handler validates the content type, converts the upload to
+    a PIL Image (RGB), and delegates to :func:`predict_gesture` for inference.
+
+    Returns
+    -------
+    JSON
+        ``prediction``  – top predicted label (e.g. ``"A"``)
+        ``confidence``  – model confidence for that label (0–1)
+        ``top_3_predictions`` – list of the three most likely labels with
+                                their confidence scores
     """
 
-    # Validate content type to ensure an image was sent
+    # --- validate that an image was actually sent --------------------------
     if not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
-
-    # Open the uploaded file and convert to RGB (model expects 3-channel data)
-    img = Image.open(image.file).convert("RGB")
-
-    # Run the prediction helper and return its result
-    result = predict_gesture(img)
-
-    return {"prediction": result}
-
-
-# ---------------------------------------------------------------------
-# video handling endpoint
-# ---------------------------------------------------------------------
-
-@app.post("/upload_video")
-async def upload_video(
-    video: UploadFile = File(...),
-    interval: int = 1,
-    max_frames: int | None = None,
-):
-    """Handle a video upload by extracting frames and classifying them.
-
-    Parameters are accepted as query parameters so the Flutter front-end can
-    configure how many frames are sampled.
-    """
-
-    if not video.content_type.startswith("video/"):
-        raise HTTPException(status_code=400, detail="File must be a video")
-
-    # write buffer to disk (OpenCV can't read file-like objects)
-    suffix = Path(video.filename).suffix or ".mp4"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(video.file, tmp)
-        tmp_path = tmp.name
-
-    try:
-        frames = extract_frames_from_video(
-            tmp_path, interval=interval, max_frames=max_frames
+        raise HTTPException(
+            status_code=400,
+            detail=f"Expected an image file, got '{image.content_type}'.",
         )
+
+    # --- decode to PIL -----------------------------------------------------
+    try:
+        contents = await image.read()
+        img = Image.open(BytesIO(contents)).convert("RGB")
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    finally:
-        try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not decode image: {exc}",
+        )
 
-    if not frames:
-        raise HTTPException(status_code=400, detail="No frames could be extracted")
-
-    predictions = predict_frames(frames)
-    most_common = Counter(p["prediction"] for p in predictions).most_common(1)[0][0]
-    return {"prediction": most_common, "per_frame": predictions}
+    # --- run inference and return result -----------------------------------
+    result = predict_gesture(img)
+    return {"prediction": result}
