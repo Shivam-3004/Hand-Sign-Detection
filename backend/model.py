@@ -4,19 +4,22 @@ from transformers import ViTConfig, ViTForImageClassification
 
 
 @lru_cache(maxsize=1)
-def get_model():
-    """Return a cached instance of the pre-trained Vision Transformer.
+def get_model() -> ViTForImageClassification:
+    """Load and cache the fine-tuned ViT model from *model.pt*.
 
-    By caching the value we avoid re-loading weights on every call, which
-    keeps inference endpoints fast when multiple requests arrive.
-
-    ``model.pt`` must exist in the current working directory when this
-    function is invoked.
+    The model is loaded once and reused for every subsequent request.
+    ``model.pt`` must exist in the working directory.
 
     Returns
     -------
     ViTForImageClassification
-        model ready for evaluation (``model.eval()`` has been called).
+        Model in evaluation mode, ready for inference.
+
+    Notes
+    -----
+    This module is kept for standalone use or testing.  The FastAPI
+    application loads the model via ``prediction._load_model_and_processor``
+    which also initialises the image processor in the same cached call.
     """
 
     config = ViTConfig(num_labels=35)
