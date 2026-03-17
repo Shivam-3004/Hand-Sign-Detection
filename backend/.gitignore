@@ -12,10 +12,5 @@ venv/
 # Environment variables
 .env
 
-# Model weights
-model.pt
-*.pt
-*.pth
-
 # Logs
 *.log
