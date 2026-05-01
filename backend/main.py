@@ -92,7 +92,7 @@ async def reset_user_endpoint(user_id: str = Form(...)):
 @app.get("/")
 def home():
     """Health check endpoint."""
-    return {"message": "Gesture API Running "}
+    return {"status": "ok"}
 
 # ==================================================
 # RUN SERVER

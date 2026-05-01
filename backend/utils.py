@@ -20,7 +20,7 @@ USER_TIMEOUT = 60  # 1 minute
 def init_user(user_id):
     user_sequences[user_id] = []
     user_frame_counters[user_id] = 0
-    user_predictions[user_id] = "Initializing..."
+    user_predictions[user_id] = "Detecting..."
     user_last_seen[user_id] = time.time()
 
 
