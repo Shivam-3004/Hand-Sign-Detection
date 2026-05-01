@@ -15,6 +15,7 @@ import mediapipe as mp
 
 from config import landmarker
 from utils import process_frame, reset_user, get_features
+from fastapi.middleware.cors import CORSMiddleware
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +25,14 @@ logger = logging.getLogger(__name__)
 # FASTAPI APP
 # ==================================================
 app = FastAPI(title="Hand Gesture API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ==================================================
 # API ENDPOINTS
