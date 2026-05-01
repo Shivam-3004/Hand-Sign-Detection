@@ -7,6 +7,7 @@ from tensorflow.keras.models import load_model
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,10 @@ FEATURES = 120
 CONFIDENCE_THRESHOLD = 0.70
 PREDICT_EVERY_N_FRAMES = 5
 
-MODEL_PATH = "../ml_model/asl_model_augmented.h5"
-TASK_MODEL_PATH = "../ml_model/hand_landmarker.task"
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "ml_model", "asl_model_augmented.h5")
+TASK_MODEL_PATH = os.path.join(BASE_DIR, "ml_model", "hand_landmarker.task")
 
 # ==================================================
 # LOAD MODELS
