@@ -34,18 +34,15 @@ def reset_user(user_id):
 # ==================================================
 # CLEANUP FUNCTION (IMPORTANT)
 # ==================================================
-def cleanup_inactive_users():
-    """Remove users who haven't sent frames recently."""
+def periodic_cleanup():                    
+    """Called by background task every 60s, not on every frame."""
     current_time = time.time()
-
     to_delete = [
-        user_id for user_id, last_seen in user_last_seen.items()
+        uid for uid, last_seen in user_last_seen.items()
         if current_time - last_seen > USER_TIMEOUT
     ]
-
-    for user_id in to_delete:
-        reset_user(user_id)
-
+    for uid in to_delete:
+        reset_user(uid)
 
 # ==================================================
 # FEATURE FUNCTIONS (same as before)
@@ -94,11 +91,11 @@ def get_features(result):
 # PREDICTION LOGIC
 # ==================================================
 def predict_gesture(sequence):
-    input_data = np.expand_dims(sequence, axis=0)
-    pred = model.predict(input_data, verbose=0)[0]
+    seq_array = np.array(sequence, dtype=np.float32)  
+    pred = model.predict(seq_array)                 
 
     class_id = np.argmax(pred)
-    conf = pred[class_id]
+    conf = float(pred[class_id])
 
     if conf >= CONFIDENCE_THRESHOLD:
         return f"{GESTURES[class_id]} ({conf:.2f})"
@@ -108,9 +105,6 @@ def predict_gesture(sequence):
 
 def process_frame(user_id, features):
     """Main processing function"""
-
-    # cleanup old users first
-    cleanup_inactive_users()
 
     if user_id not in user_sequences:
         init_user(user_id)
@@ -124,9 +118,9 @@ def process_frame(user_id, features):
     sequence.append(features)
 
     if len(sequence) > MAX_FRAMES:
-        sequence = sequence[-MAX_FRAMES:]
+        del sequence[:-MAX_FRAMES]
 
-    frame_counter += 1
+    frame_counter = (frame_counter + 1) % 100000
 
     prediction = user_predictions[user_id]
 

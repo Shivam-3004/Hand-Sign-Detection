@@ -3,28 +3,65 @@
 # Hand Gesture → Text API
 # ==================================================
 
-import io
 import logging
+import asyncio
 import numpy as np
-from PIL import Image
+import cv2
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
-
+from fastapi.middleware.cors import CORSMiddleware
 import mediapipe as mp
 
 from config import landmarker, MAX_FRAMES
-from utils import process_frame, reset_user, get_features, user_sequences
-from fastapi.middleware.cors import CORSMiddleware
+from utils import process_frame, reset_user, get_features, user_sequences, periodic_cleanup
+from contextlib import asynccontextmanager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+_executor = ThreadPoolExecutor(max_workers=2)
 # ==================================================
 # FASTAPI APP
 # ==================================================
-app = FastAPI(title="Hand Gesture API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: launch background cleanup task
+    async def _cleanup_loop():
+        while True:
+            await asyncio.sleep(60)
+            periodic_cleanup()
+    task = asyncio.create_task(_cleanup_loop())
+    
+    yield 
+
+    task.cancel()
+
+def _sync_process(image_bytes: bytes, user_id: str):
+    """All CPU-heavy work in one function — runs in thread pool."""
+    # Decode with cv2 (faster than PIL for this use case)
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if frame is None:
+        raise ValueError("Invalid image data")
+    
+    # Resize only if frame is large (saves MediaPipe time)
+    h, w = frame.shape[:2]
+    if h > 320 or w > 320:
+        frame = cv2.resize(frame, (320, 320), interpolation=cv2.INTER_AREA)
+
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+    result = landmarker.detect(mp_image)
+
+    features = get_features(result)
+    hand_visible = bool(result.hand_landmarks)
+    prediction = process_frame(user_id, features)
+    return prediction, hand_visible
+
+app = FastAPI(title="Hand Gesture API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,63 +74,49 @@ app.add_middleware(
 # ==================================================
 # API ENDPOINTS
 # ==================================================
+
 @app.post("/predict-frame")
 async def predict_frame(
     file: UploadFile = File(...),
     user_id: str = Form(...)
 ):
-    """Predict gesture from uploaded frame image."""
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid file type.")
+
+    contents = await file.read()
+
+    loop = asyncio.get_running_loop()
     try:
-        # Validate input
-        if not file.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Invalid file type. Use PNG or JPG.")
-
-        # Read and process image
-        contents = await file.read()
-        image = Image.open(io.BytesIO(contents)).convert("RGB")
-        frame = np.array(image)
-
-        # MediaPipe detection
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-        result = landmarker.detect(mp_image)
-        features = get_features(result)
-
-        # Process and get prediction
-        prediction = process_frame(user_id, features)
-
-        logger.info(f"user={user_id}, prediction={prediction}")
-
-        # Determine if hand is visible
-        hand_visible = bool(result.hand_landmarks)
-
-        frame_count = len(user_sequences.get(user_id, []))
-
-        buffer_ready = frame_count >= MAX_FRAMES
-
-        return JSONResponse({
-            "prediction": prediction,
-            "hand_visible": hand_visible,
-            "buffer_ready": buffer_ready,
-            "frame_count": frame_count
-        })
-
-    except HTTPException:
-        raise
+        prediction, hand_visible = await loop.run_in_executor(
+            _executor, _sync_process, contents, user_id
+        )
     except Exception as e:
-        logger.error(f"Error in predict_frame: {e}")
+        logger.error(f"Processing error for user={user_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+    if prediction is None:
+        return JSONResponse({"prediction": None, "hand_visible": False,
+                             "buffer_ready": False, "frame_count": 0})
+
+    frame_count = len(user_sequences.get(user_id, []))
+    logger.info(f"user={user_id}, prediction={prediction}")
+
+    return JSONResponse({
+        "prediction": prediction,
+        "hand_visible": hand_visible,
+        "buffer_ready": frame_count >= MAX_FRAMES,
+        "frame_count": frame_count
+    })
 
 @app.post("/reset-session")
 async def reset_user_endpoint(user_id: str = Form(...)):
-    """Reset user sequence and prediction state."""
     reset_user(user_id)
     return {"status": "reset"}
 
+
 @app.get("/")
 def home():
-    """Health check endpoint."""
     return {"status": "ok"}
-
 # ==================================================
 # RUN SERVER
 # ==================================================
