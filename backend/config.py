@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 # CONSTANTS
 # ==================================================
 GESTURES = ['Alright', 'Good Afternoon', 'Good Morning', 'Hello', 'How are you']
-MAX_FRAMES = 60
+MAX_FRAMES = 15
 FEATURES = 120
-CONFIDENCE_THRESHOLD = 0.70
-PREDICT_EVERY_N_FRAMES = 5
+CONFIDENCE_THRESHOLD = 0.50
+PREDICT_EVERY_N_FRAMES = 3
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "ml_model", "asl_model_augmented.h5")  # back to .h5
