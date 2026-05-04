@@ -40,7 +40,7 @@ class _CameraScreenState extends State<CameraScreen>
   bool _bufferReady = false;
   int _frameCount = 0;
 
-  static const int _frameIntervalMs = 900;
+  static const int _frameIntervalMs = 200;
   DateTime _lastFrameSent = DateTime(2000);
 
   int _fps = 0;
@@ -210,6 +210,16 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   Future<void> _onCameraFrame(Uint8List jpegBytes) async {
+
+    // 🔥 MIRROR FIX (IMPORTANT)
+    if (_isFrontCamera) {
+      final original = img.decodeJpg(jpegBytes);
+      if (original != null) {
+        final flipped = img.flipHorizontal(original);
+        jpegBytes = Uint8List.fromList(img.encodeJpg(flipped));
+      }
+    }
+
     final haptic = context.read<HapticProvider>();
 
     _fpsRawCount++;
@@ -304,12 +314,24 @@ class _CameraScreenState extends State<CameraScreen>
       body: Stack(
         children: [
           Positioned.fill(
-            child: Transform(
-              alignment: Alignment.center,
-              transform: _isFrontCamera
-                  ? (Matrix4.identity()..scale(-1.0, 1.0, 1.0))
-                  : Matrix4.identity(),
-              child: CameraPreview(ctrl),
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: ctrl.value.aspectRatio,
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: ctrl.value.previewSize!.height,
+                    height: ctrl.value.previewSize!.width,
+                    child: _isFrontCamera
+                        ? Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.diagonal3Values(-1.0, 1.0, 1.0),
+                      child: CameraPreview(ctrl),
+                    )
+                        : CameraPreview(ctrl),
+                  ),
+                ),
+              ),
             ),
           ),
 

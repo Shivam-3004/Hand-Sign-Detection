@@ -16,7 +16,7 @@ class AppContent {
 
   static const String teamName       = 'Major Project Team';
   static const String institution    = 'Govt. Polytechnic Dehradun Pitthuwala, Uttarakhand';
-  static const String contactEmail   = 'your.email@example.com';
+  static const String contactEmail   = 'detectionhandsign@gmail.com';
   static const String githubUrl      = 'https://github.com/Shivam-3004/Hand-Sign-Detection';
 
   // ── Tech stack chips shown on About screen ─────────────────────────────
