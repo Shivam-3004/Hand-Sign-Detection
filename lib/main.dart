@@ -7,10 +7,13 @@ import 'package:handsingdetection/theme/theme_provider.dart';
 import 'package:handsingdetection/theme/haptic_provider.dart';
 import 'firebase_options.dart';
 
-Future<void> main(dynamic DefaultFirebaseOptions) async {
+Future<void> main() async {
   print("DEBUG: App execution started (main.dart)");
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform,);
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   runApp(
     MultiProvider(
