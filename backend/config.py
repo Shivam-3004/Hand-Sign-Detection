@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # ==================================================
 # CONSTANTS
 # ==================================================
-GESTURES = ['Alright', 'Good Afternoon', 'Good Morning', 'Hello', 'How are you']
+GESTURES = ['Hello', 'Stop', 'Swipe']
 MAX_FRAMES = 15
 FEATURES = 120
 CONFIDENCE_THRESHOLD = 0.50
